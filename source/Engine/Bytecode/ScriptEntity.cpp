@@ -703,6 +703,10 @@ void ScriptEntity::LinkFields() {
     * \desc After a successful call to <ref TileCollision.Line>, this value will contain the angle of the tile within the range of `0x00` - `0xFF`.
     */
 	LINK_INT(SensorAngle);
+	LINK_INT(SensorAngleTop);
+	LINK_INT(SensorAngleBottom);
+	LINK_INT(SensorAngleLeft);
+	LINK_INT(SensorAngleRight);
 
 	/***
     * \field Active

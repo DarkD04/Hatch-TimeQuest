@@ -2050,30 +2050,7 @@ void Scene::ReadSceneFile(const char* filename) {
 	Stream* r = ResourceStream::New(filename);
 	if (r) {
 		// Guess from the header first
-		Uint32 magic = r->ReadUInt32();
-
-		if (magic == HatchSceneReader::Magic) {
-			r->Seek(0);
-			HatchSceneReader::Read(r, pathParent);
-		}
-		else if (magic == RSDKSceneReader::Magic) {
-			r->Seek(0);
-			RSDKSceneReader::Read(r, pathParent);
-		}
-		else {
-			r->Close();
-
-			// Guess from the filename
-			if (StringUtils::StrCaseStr(filename, ".bin")) {
-				RSDKSceneReader::Read(filename, pathParent);
-			}
-			else if (StringUtils::StrCaseStr(filename, ".hcsn")) {
-				HatchSceneReader::Read(filename, pathParent);
-			}
-			else {
-				TiledMapReader::Read(filename, pathParent);
-			}
-		}
+		RSDKSceneReader::Read(filename, pathParent);
 
 		InitTileCollisions();
 		SetInfoFromCurrentID();
@@ -2625,38 +2602,233 @@ void Scene::ReadRSDKTile(TileConfig* tile, Uint8* line) {
 	}
 }
 void Scene::LoadRSDKTileConfig(int tilesetID, Stream* tileColReader) {
+	//tileColReader->Seek(0);
+	Log::Print(0, "MEOW.");
 	Uint32 tileCount = 0x400;
 
-	Uint8* tileData = (Uint8*)Memory::Calloc(1, tileCount * 2 * 0x26);
-	Uint8* tileInfo = tileData;
-	tileColReader->ReadCompressed(tileInfo);
+	unsigned char fileBuffer = 0;
+	int tileIndex = 0;
+	for (int t = 0; t < tileCount; ++t)
+	{
+		for (int p = 0; p < 2; ++p)
+		{
+			//Tile collision pointer
+			TileConfig* tile = &Scene::TileCfg[p][t];
+
+			tileColReader->ReadBytes(&fileBuffer, 1);
+			bool isCeiling = fileBuffer >> 4;
+			int flag = fileBuffer & 0xF;
+			tile->Behavior = flag;
+
+			//Read angle data
+			tileColReader->ReadBytes(&fileBuffer, 1);
+			tile->AngleTop = fileBuffer;
+			tileColReader->ReadBytes(&fileBuffer, 1);
+			tile->AngleLeft = fileBuffer;
+			tileColReader->ReadBytes(&fileBuffer, 1);
+			tile->AngleRight = fileBuffer;
+			tileColReader->ReadBytes(&fileBuffer, 1);
+			tile->AngleBottom = fileBuffer;
+
+			int TILE_SIZE = 16;
+
+			//Ceiling tiles
+			if (isCeiling)
+			{
+				for (int c = 0; c < TILE_SIZE; c += 2)
+				{
+					tileColReader->ReadBytes(&fileBuffer, 1);
+					tile->CollisionBottom[c] = fileBuffer >> 4;
+					tile->CollisionBottom[c + 1] = fileBuffer & 0xF;
+				}
+
+				//Has collision
+				for (int a = 1; a >= 0; a -= 1)
+				{
+					tileColReader->ReadBytes(&fileBuffer, 1);
+					int id = 1;
+					for (int c = 0; c < TILE_SIZE / 2; c += 1)
+					{
+						if (fileBuffer & id)
+						{
+							tile->CollisionTop[c + 8 * a] = 0;
+						}
+						else
+						{
+							tile->CollisionTop[c + 8 * a] = 0xFF;
+							tile->CollisionBottom[c + 8 * a] = 0xFF;
+						}
+						id <<= 1;
+					}
+				}
+
+				// Left Wall rotations
+				// TODO: Should be Width or Height?
+				for (int c = 0; c < TileWidth; ++c) {
+					int h = 0;
+					while (true) {
+						if (h == TileWidth) {
+							tile->CollisionLeft[c] = 0xFF;
+							break;
+						}
+
+						if (tile->CollisionBottom[h] != 0xFF && c <= tile->CollisionBottom[h]) {
+							tile->CollisionLeft[c] = h;
+							break;
+						}
+						else {
+							++h;
+							if (h <= -1)
+								break;
+						}
+					}
+				}
+
+				for (int c = 0; c < TileWidth; ++c) {
+					int h = TileWidth - 1;
+					while (true) {
+						if (h == -1) {
+							tile->CollisionRight[c] = 0xFF;
+							break;
+						}
+
+						if (tile->CollisionBottom[h] != 0xFF && c <= tile->CollisionBottom[h]) {
+							tile->CollisionRight[c] = h;
+							break;
+						}
+						else {
+							--h;
+							if (h >= TileWidth)
+								break;
+						}
+					}
+				}
+
+
+			}
+			else    //Floor collision
+			{
+				for (int c = 0; c < TILE_SIZE; c += 2)
+				{
+					tileColReader->ReadBytes(&fileBuffer, 1);
+					tile->CollisionTop[c] = fileBuffer >> 4;
+					tile->CollisionTop[c + 1] = fileBuffer & 0xF;
+				}
+
+				//Has collision part 1
+				for (int a = 1; a >= 0; a -= 1)
+				{
+					tileColReader->ReadBytes(&fileBuffer, 1);
+					int id = 1;
+					for (int c = 0; c < TILE_SIZE / 2; c += 1)
+					{
+						if (fileBuffer & id)
+						{
+							tile->CollisionBottom[c + 8 * a] = 0xF;
+						}
+						else
+						{
+							tile->CollisionTop[c + 8 * a] = 0xFF;
+							tile->CollisionBottom[c + 8 * a] = 0xFF;
+						}
+						id <<= 1;
+					}
+				}
+
+				// Left Wall rotations
+				// TODO: Should be Width or Height?
+				for (int c = 0; c < TileWidth; ++c) {
+					int h = 0;
+					while (true) {
+						if (h == TileWidth) {
+							tile->CollisionLeft[c] = 0xFF;
+							break;
+						}
+
+						if (tile->CollisionTop[h] != 0xFF && c >= tile->CollisionTop[h]) {
+							tile->CollisionLeft[c] = h;
+							break;
+						}
+						else {
+							++h;
+							if (h <= -1)
+								break;
+						}
+					}
+				}
+
+				// Right Wall rotations
+				// TODO: Should be Width or Height?
+				for (int c = 0; c < TileWidth; ++c) {
+					int h = TileWidth - 1;
+					while (true) {
+						if (h == -1) {
+							tile->CollisionRight[c] = 0xFF;
+							break;
+						}
+
+						if (tile->CollisionTop[h] != 0xFF && c >= tile->CollisionTop[h]) {
+							tile->CollisionRight[c] = h;
+							break;
+						}
+						else {
+							--h;
+							if (h >= TileWidth)
+								break;
+						}
+					}
+				}
+
+
+
+			}
+			TileConfig* tileDest, * tileLast;
+			tileDest = tile + Scene::TileCount;
+
+			tileDest->AngleTop = -tile->AngleTop;
+			tileDest->AngleLeft = -tile->AngleRight;
+			tileDest->AngleRight = -tile->AngleLeft;
+			tileDest->AngleBottom = -tile->AngleBottom;
+			for (int xD = 0, xS = 15; xD <= 15; xD++, xS--) {
+				tileDest->CollisionTop[xD] = tile->CollisionTop[xS];
+				tileDest->CollisionBottom[xD] = tile->CollisionBottom[xS];
+				// Swaps
+				tileDest->CollisionLeft[xD] = tile->CollisionRight[xD] ^ 15;
+				tileDest->CollisionRight[xD] = tile->CollisionLeft[xD] ^ 15;
+			}
+
+			// Flip Y
+			tileDest = tile + (Scene::TileCount << 1);
+			tileDest->AngleTop = 0x80 - tile->AngleBottom;
+			tileDest->AngleLeft = 0x80 - tile->AngleLeft;
+			tileDest->AngleRight = 0x80 - tile->AngleRight;
+			tileDest->AngleBottom = 0x80 - tile->AngleTop;
+			for (int xD = 0, xS = 15; xD <= 15; xD++, xS--) {
+				tileDest->CollisionLeft[xD] = tile->CollisionLeft[xS];
+				tileDest->CollisionRight[xD] = tile->CollisionRight[xS];
+				// Swaps
+				tileDest->CollisionTop[xD] = tile->CollisionBottom[xD] ^ 15;
+				tileDest->CollisionBottom[xD] = tile->CollisionTop[xD] ^ 15;
+			}
+
+			// Flip XY
+			tileLast = tileDest;
+			tileDest = tile + (Scene::TileCount << 1) + Scene::TileCount;
+			tileDest->AngleTop = -tileLast->AngleTop;
+			tileDest->AngleLeft = -tileLast->AngleRight;
+			tileDest->AngleRight = -tileLast->AngleLeft;
+			tileDest->AngleBottom = -tileLast->AngleBottom;
+			for (int xD = 0, xS = 15; xD <= 15; xD++, xS--) {
+				tileDest->CollisionTop[xD] = tile->CollisionBottom[xS] ^ 15;
+				tileDest->CollisionLeft[xD] = tile->CollisionRight[xS] ^ 15;
+				tileDest->CollisionRight[xD] = tile->CollisionLeft[xS] ^ 15;
+				tileDest->CollisionBottom[xD] = tile->CollisionTop[xS] ^ 15;
+			}
+
+		}
+	}
 
 	Scene::TileCfgLoaded = true;
-
-	// Read plane A
-	TileConfig* tile = &Scene::TileCfg[0][0];
-
-	for (Uint32 i = 0; i < tileCount; i++) {
-		Uint8* line = &tileInfo[i * 38];
-
-		ReadRSDKTile(tile, line);
-
-		tile++;
-	}
-
-	// Read plane B
-	tileInfo += tileCount * 38;
-	tile = &Scene::TileCfg[1][0];
-
-	for (Uint32 i = 0; i < tileCount; i++) {
-		Uint8* line = &tileInfo[i * 38];
-
-		ReadRSDKTile(tile, line);
-
-		tile++;
-	}
-
-	Memory::Free(tileData);
 }
 void Scene::LoadHCOLTileConfig(size_t tilesetID, Stream* tileColReader) {
 	if (!Scene::Tilesets.size()) {
@@ -3038,18 +3210,9 @@ void Scene::LoadTileCollisions(const char* filename, size_t tilesetID) {
 		return;
 	}
 
-	Uint32 magic = tileColReader->ReadUInt32();
+	//Uint32 magic = tileColReader->ReadUInt32();
 	// RSDK TileConfig
-	if (magic == 0x004C4954U) {
-		Scene::LoadRSDKTileConfig(tilesetID, tileColReader);
-	}
-	// HCOL TileConfig
-	else if (magic == 0x4C4F4354U) {
-		Scene::LoadHCOLTileConfig(tilesetID, tileColReader);
-	}
-	else {
-		Log::Print(Log::LOG_ERROR, "Unknown tile collision format! (%X)", magic);
-	}
+	Scene::LoadRSDKTileConfig(tilesetID, tileColReader);
 
 	tileColReader->Close();
 }
@@ -3739,16 +3902,9 @@ int Scene::CollisionAt(int x, int y, int collisionField, int collideSide, int* a
 	return -1;
 }
 
-int Scene::CollisionInLine(int x,
-	int y,
-	int angleMode,
-	int checkLen,
-	int collisionField,
-	bool compareAngle,
-	Sensor* sensor) {
-	if (checkLen < 0 || collisionField < 0 || collisionField >= Scene::TileCfg.size()) {
+int Scene::CollisionInLine(int x, int y, int angleMode, int checkLen, int collisionField, bool compareAngle, bool canTopSolid, bool canSideSolid, Sensor* sensor) {
+	if (checkLen < 0 || collisionField < 0 || collisionField >= Scene::TileCfg.size())
 		return -1;
-	}
 
 	int probeXOG = x;
 	int probeYOG = y;
@@ -3762,12 +3918,15 @@ int Scene::CollisionInLine(int x,
 	int maxTileCheck = ((checkLen + 15) >> 4) + 1;
 	int minLength = 0x7FFFFFFF, sensedLength;
 
+	//Make mask all solid by default
 	collisionMask = 3;
+
 	switch (angleMode) {
 	case 0:
 		probeDeltaX = 0;
 		probeDeltaY = 1;
 		collisionMask = 1;
+
 		break;
 	case 1:
 		probeDeltaX = 1;
@@ -3786,74 +3945,72 @@ int Scene::CollisionInLine(int x,
 		break;
 	}
 
-	switch (collisionField) {
-	case 0:
-		collisionMask <<= 28;
-		break;
-	case 1:
-		collisionMask <<= 26;
-		break;
-	case 2:
-		collisionMask <<= 24;
-		break;
+	//TIME QUEST EXCLUSIVE!!
+	//Now here's the fun part, make it all nothing if either of these flags is on
+	if (canTopSolid || canSideSolid)
+	{
+		collisionMask = 0;
+
+		collisionMask |= 1 * canTopSolid;
+		collisionMask |= 2 * canSideSolid;
 	}
 
-	// probeDeltaX *= 16;
-	// probeDeltaY *= 16;
+	switch (collisionField) {
+	case 0: collisionMask <<= 28; break;
+	case 1: collisionMask <<= 26; break;
+	case 2: collisionMask <<= 24; break;
+	}
 
+	//Reset
 	sensor->Collided = false;
+	sensor->Angle = 0;
+	sensor->AngleTop = 0;
+	sensor->AngleBottom = 0;
+	sensor->AngleLeft = 0;
+	sensor->AngleRight = 0;
+
 	for (size_t l = 0, lSz = Layers.size(); l < lSz; l++) {
-		SceneLayer& layer = Layers[l];
-		if (!(layer.Flags & SceneLayer::FLAGS_COLLIDEABLE)) {
+		SceneLayer layer = Layers[l];
+		if (!(layer.Flags & SceneLayer::FLAGS_COLLIDEABLE))
 			continue;
-		}
 
 		x = probeXOG;
 		y = probeYOG;
 		x += layer.OffsetX;
 		y += layer.OffsetY;
 
-		// x = ((x % temp) + temp) % temp;
-		// y = ((y % temp) + temp) % temp;
-
 		tileX = x >> 4;
 		tileY = y >> 4;
 		for (int sl = 0; sl < maxTileCheck; sl++) {
-			if (tileX < 0 || tileX >= layer.Width) {
+			if (tileX < 0 || tileX >= layer.Width)
 				goto NEXT_TILE;
-			}
-			if (tileY < 0 || tileY >= layer.Height) {
+			if (tileY < 0 || tileY >= layer.Height)
 				goto NEXT_TILE;
-			}
 
 			tileID = layer.Tiles[tileX + (tileY << layer.WidthInBits)];
 			if ((tileID & TILE_IDENT_MASK) != EmptyTile) {
-				tileFlipOffset = (((!!(tileID & TILE_FLIPY_MASK)) << 1) |
-							 (!!(tileID & TILE_FLIPX_MASK))) *
-					Scene::TileCount;
+				tileFlipOffset = (
+					((!!(tileID & TILE_FLIPY_MASK)) << 1) | (!!(tileID & TILE_FLIPX_MASK))
+					) * Scene::TileCount;
 
 				collisionA = ((tileID & TILE_COLLA_MASK & collisionMask) >> 28);
 				collisionB = ((tileID & TILE_COLLB_MASK & collisionMask) >> 26);
 				tileID = tileID & TILE_IDENT_MASK;
 
 				tileCfg = &tileCfgBase[tileID] + tileFlipOffset;
-				if (!(collisionB | collisionA)) {
+				if (!(collisionB | collisionA))
 					goto NEXT_TILE;
-				}
 
 				switch (angleMode) {
 				case 0:
 					collision = tileCfg->CollisionTop[x & 15];
-					if (collision >= 0xF0) {
+					if (collision >= 0xF0)
 						break;
-					}
 
 					collision += tileY << 4;
 					sensedLength = collision - y;
 					if ((Uint32)sensedLength <= (Uint32)checkLen) {
-						if (!compareAngle ||
-							abs((int)tileCfg->AngleTop -
-								sensor->Angle) <= 0x20) {
+						if (!compareAngle || abs((int)tileCfg->AngleTop - sensor->Angle) <= 0x20) {
 							if (minLength > sensedLength) {
 								minLength = sensedLength;
 								sensor->Angle = tileCfg->AngleTop;
@@ -3862,6 +4019,13 @@ int Scene::CollisionInLine(int x,
 								sensor->Y = collision;
 								sensor->X -= layer.OffsetX;
 								sensor->Y -= layer.OffsetY;
+
+								//Time quest addition, i have no idea why this wasn't in the engine in the first place
+								sensor->AngleTop = tileCfg->AngleTop;
+								sensor->AngleBottom = tileCfg->AngleBottom;
+								sensor->AngleLeft = tileCfg->AngleLeft;
+								sensor->AngleRight = tileCfg->AngleRight;
+
 								sl = maxTileCheck;
 							}
 						}
@@ -3869,16 +4033,13 @@ int Scene::CollisionInLine(int x,
 					break;
 				case 1:
 					collision = tileCfg->CollisionLeft[y & 15];
-					if (collision >= 0xF0) {
+					if (collision >= 0xF0)
 						break;
-					}
 
 					collision += tileX << 4;
 					sensedLength = collision - x;
 					if ((Uint32)sensedLength <= (Uint32)checkLen) {
-						if (!compareAngle ||
-							abs((int)tileCfg->AngleLeft -
-								sensor->Angle) <= 0x20) {
+						if (!compareAngle || abs((int)tileCfg->AngleLeft - sensor->Angle) <= 0x20) {
 							if (minLength > sensedLength) {
 								minLength = sensedLength;
 								sensor->Angle = tileCfg->AngleLeft;
@@ -3887,47 +4048,52 @@ int Scene::CollisionInLine(int x,
 								sensor->Y = y;
 								sensor->X -= layer.OffsetX;
 								sensor->Y -= layer.OffsetY;
+
+								//Time quest addition, i have no idea why this wasn't in the engine in the first place
+								sensor->AngleTop = tileCfg->AngleTop;
+								sensor->AngleBottom = tileCfg->AngleBottom;
+								sensor->AngleLeft = tileCfg->AngleLeft;
+								sensor->AngleRight = tileCfg->AngleRight;
 							}
 						}
 					}
 					break;
 				case 2:
 					collision = tileCfg->CollisionBottom[x & 15];
-					if (collision >= 0xF0) {
+					if (collision >= 0xF0)
 						break;
-					}
 
 					collision += tileY << 4;
 					sensedLength = y - collision;
 					if ((Uint32)sensedLength <= (Uint32)checkLen) {
-						if (!compareAngle ||
-							abs((int)tileCfg->AngleBottom -
-								sensor->Angle) <= 0x20) {
+						if (!compareAngle || abs((int)tileCfg->AngleBottom - sensor->Angle) <= 0x20) {
 							if (minLength > sensedLength) {
 								minLength = sensedLength;
-								sensor->Angle =
-									tileCfg->AngleBottom;
+								sensor->Angle = tileCfg->AngleBottom;
 								sensor->Collided = true;
 								sensor->X = x;
 								sensor->Y = collision;
 								sensor->X -= layer.OffsetX;
 								sensor->Y -= layer.OffsetY;
+
+								//Time quest addition, i have no idea why this wasn't in the engine in the first place
+								sensor->AngleTop = tileCfg->AngleTop;
+								sensor->AngleBottom = tileCfg->AngleBottom;
+								sensor->AngleLeft = tileCfg->AngleLeft;
+								sensor->AngleRight = tileCfg->AngleRight;
 							}
 						}
 					}
 					break;
 				case 3:
 					collision = tileCfg->CollisionRight[y & 15];
-					if (collision >= 0xF0) {
+					if (collision >= 0xF0)
 						break;
-					}
 
 					collision += tileX << 4;
 					sensedLength = x - collision;
 					if ((Uint32)sensedLength <= (Uint32)checkLen) {
-						if (!compareAngle ||
-							abs((int)tileCfg->AngleRight -
-								sensor->Angle) <= 0x20) {
+						if (!compareAngle || abs((int)tileCfg->AngleRight - sensor->Angle) <= 0x20) {
 							if (minLength > sensedLength) {
 								minLength = sensedLength;
 								sensor->Angle = tileCfg->AngleRight;
@@ -3936,6 +4102,12 @@ int Scene::CollisionInLine(int x,
 								sensor->Y = y;
 								sensor->X -= layer.OffsetX;
 								sensor->Y -= layer.OffsetY;
+
+								//Time quest addition, i have no idea why this wasn't in the engine in the first place
+								sensor->AngleTop = tileCfg->AngleTop;
+								sensor->AngleBottom = tileCfg->AngleBottom;
+								sensor->AngleLeft = tileCfg->AngleLeft;
+								sensor->AngleRight = tileCfg->AngleRight;
 							}
 						}
 					}
@@ -3949,9 +4121,8 @@ int Scene::CollisionInLine(int x,
 		}
 	}
 
-	if (sensor->Collided) {
+	if (sensor->Collided)
 		return sensor->Angle;
-	}
 
 	return -1;
 }

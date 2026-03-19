@@ -220,13 +220,7 @@ public:
 	static void
 	SetTile(int layer, int x, int y, int tileID, int flip_x, int flip_y, int collA, int collB);
 	static int CollisionAt(int x, int y, int collisionField, int collideSide, int* angle);
-	static int CollisionInLine(int x,
-		int y,
-		int angleMode,
-		int checkLen,
-		int collisionField,
-		bool compareAngle,
-		Sensor* sensor);
+	static int CollisionInLine(int x, int y, int angleMode, int checkLen, int collisionField, bool compareAngle, bool canTopSolid, bool canSideSolid, Sensor* sensor);
 	static void OrientHitbox(CollisionBox* source, int direction, CollisionBox* destination) {
 		*destination = *source;
 		if (direction & FLIP_X) {

@@ -40,6 +40,10 @@ struct Sensor {
 	int Y;
 	int Collided;
 	int Angle;
+	int AngleTop;
+	int AngleBottom;
+	int AngleLeft;
+	int AngleRight;
 };
 
 struct CollisionSensor {

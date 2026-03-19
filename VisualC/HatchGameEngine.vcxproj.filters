@@ -483,9 +483,6 @@
     <ClCompile Include="..\source\Libraries\linenoise-ng\linenoise.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\source\Libraries\wcwidth.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\source\engine\bytecode\TypeImpl\EntityImpl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -496,6 +493,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\source\engine\bytecode\TypeImpl\TypeImpl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\engine\bytecode\BytecodeDebugger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\Engine\Utilities\Screenshot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\source\Libraries\linenoise-ng\wcwidth.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -18040,35 +18040,39 @@ VMValue TileCollision_PointExtended(int argCount, VMValue* args, Uint32 threadID
  * \ns TileCollision
  */
 VMValue TileCollision_Line(int argCount, VMValue* args, Uint32 threadID) {
-	CHECK_ARGCOUNT(7);
-	int x = (int)std::floor(GET_ARG(0, GetDecimal));
-	int y = (int)std::floor(GET_ARG(1, GetDecimal));
-	int angleMode = GET_ARG(2, GetInteger);
-	int length = (int)GET_ARG(3, GetDecimal);
-	int collisionField = GET_ARG(4, GetInteger);
-	int compareAngle = GET_ARG(5, GetInteger);
-	ObjEntity* entity = GET_ARG(6, GetEntity);
+    CHECK_ARGCOUNT(9);
+    int x = (int)std::floor(GET_ARG(0, GetDecimal));
+    int y = (int)std::floor(GET_ARG(1, GetDecimal));
+    int angleMode = GET_ARG(2, GetInteger);
+    int length = (int)GET_ARG(3, GetDecimal);
+    int collisionField = GET_ARG(4, GetInteger);
+    int compareAngle = GET_ARG(5, GetInteger);
+    bool canTop = GET_ARG(6, GetInteger);
+    bool canSide = GET_ARG(7, GetInteger);
+    ObjEntity* entity = GET_ARG(8, GetEntity);
 
-	if (!entity || !entity->EntityPtr) {
-		return INTEGER_VAL(false);
-	}
+    Sensor sensor;
+    sensor.X = x;
+    sensor.Y = y;
+    sensor.Collided = false;
+    sensor.Angle = 0;
+    if (compareAngle > -1)
+        sensor.Angle = compareAngle & 0xFF;
 
-	Sensor sensor;
-	sensor.X = x;
-	sensor.Y = y;
-	sensor.Collided = false;
-	sensor.Angle = 0;
-	if (compareAngle > -1) {
-		sensor.Angle = compareAngle & 0xFF;
-	}
-
-	Scene::CollisionInLine(x, y, angleMode, length, collisionField, compareAngle > -1, &sensor);
+    Scene::CollisionInLine(x, y, angleMode, length, collisionField, compareAngle > -1, canTop, canSide, &sensor);
 
 	Entity* ent = (Entity*)entity->EntityPtr;
 	ent->SensorX = (float)sensor.X;
 	ent->SensorY = (float)sensor.Y;
 	ent->SensorCollided = sensor.Collided;
 	ent->SensorAngle = sensor.Angle;
+
+	//Time quest addition, i have no idea why this wasn't in the engine in the first place
+	ent->SensorAngleTop = sensor.AngleTop;
+	ent->SensorAngleBottom = sensor.AngleBottom;
+	ent->SensorAngleLeft = sensor.AngleLeft;
+	ent->SensorAngleRight = sensor.AngleRight;
+
 	return INTEGER_VAL(sensor.Collided);
 }
 // #endregion

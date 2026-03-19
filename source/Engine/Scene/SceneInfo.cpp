@@ -134,7 +134,7 @@ std::string SceneInfo::GetFilename(int categoryID, int entryID) {
 
 	// RSDK compatibility.
 	if (entry.Filetype != nullptr && strcmp(entry.Filetype, "bin") == 0) {
-		filePath = "Scene";
+		filePath = "Act";
 	}
 
 	filePath += id;
@@ -201,7 +201,7 @@ int SceneInfo::GetFilter(int categoryID, int entryID) {
 }
 
 std::string SceneInfo::GetTileConfigFilename(int categoryID, int entryID) {
-	return GetParentPath(categoryID, entryID) + "TileConfig.bin";
+	return GetParentPath(categoryID, entryID) + "CollisionMasks.bin";
 }
 
 char* SceneInfo::GetEntryProperty(int categoryID, int entryID, char* property) {

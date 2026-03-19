@@ -135,6 +135,10 @@ public:
 	float SensorY = 0.0f;
 	int SensorCollided = false;
 	int SensorAngle = 0;
+	int SensorAngleTop = 0;
+	int SensorAngleBottom = 0;
+	int SensorAngleLeft = 0;
+	int SensorAngleRight = 0;
 	int TileCollisions = TILECOLLISION_NONE;
 	int CollisionLayers = 0;
 	int CollisionPlane = 0;
